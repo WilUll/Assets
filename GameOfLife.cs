@@ -6,13 +6,13 @@ public class GameOfLife : ProcessingLite.GP21
     float cellSize = 0.25f; //Size of our cells
     int numberOfColums;
     int numberOfRows;
-    int spawnChancePercentage = 25;
+    bool isPaused = true;
 
     void Start()
     {
         //Lower framerate makes it easier to test and see whats happening.
         QualitySettings.vSyncCount = 0;
-        Application.targetFrameRate = 8;
+        Application.targetFrameRate = 60;
         //Calculate our grid depending on size and cellSize
         numberOfColums = (int)Mathf.Floor(Width / cellSize);
         numberOfRows = (int)Mathf.Floor(Height / cellSize);
@@ -30,12 +30,6 @@ public class GameOfLife : ProcessingLite.GP21
             {
                 //Create our game cell objects, multiply by cellSize for correct world placement
                 cells[x, y] = new GameCell(x * cellSize, y * cellSize, cellSize);
-
-                //Random check to see if it should be alive
-                if (Random.Range(0, 100) < spawnChancePercentage)
-                {
-                    cells[x, y].alive = true;
-                }
             }
         }
     }
@@ -45,59 +39,112 @@ public class GameOfLife : ProcessingLite.GP21
         //Clear screen
         Background(0);
 
-        //TODO: Calculate next generation
-        for (int y = 0; y < numberOfRows; ++y)
+        //Controls
+        //Speed up or slows down on arrow keys
+        if (Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.UpArrow) && Application.targetFrameRate < 120)
         {
-            for (int x = 0; x < numberOfColums; ++x)
+            Application.targetFrameRate *= 2;
+        }
+        if (Input.GetKeyDown(KeyCode.LeftArrow) || Input.GetKeyDown(KeyCode.DownArrow) && Application.targetFrameRate >1)
+        {
+            Application.targetFrameRate /= 2;
+        }
+
+        if (Input.GetAxis("Mouse ScrollWheel")< 0 && Camera.main.orthographicSize < 5)
+        {
+            Camera.main.orthographicSize++;
+        }
+        if (Input.GetAxis("Mouse ScrollWheel") > 0 && Camera.main.orthographicSize > 1)
+        {
+            Camera.main.orthographicSize--;
+        }
+
+
+        if (Input.GetKeyDown(KeyCode.Space) == true)
+        {
+            isPaused = !isPaused;
+            if (isPaused == true)
             {
-                int neighbours = 0;
 
-                //Goes through the x axis from left to right
-                //Goes through the y axis from top to bottom
-                for (int i = -1; i < 2; i++)
+                Application.targetFrameRate = 60;
+            }
+            else
+            {
+                Application.targetFrameRate = 8;
+            }
+        }
+
+
+        if (isPaused == false)
+        {
+
+            for (int y = 0; y < numberOfRows; ++y)
+            {
+                for (int x = 0; x < numberOfColums; ++x)
                 {
-                    for (int j = -1; j < 2; j++)
-                    {
-                        if (x + j > 0 && x + j < numberOfColums && y + i > 0 && y + i < numberOfRows)
-                        {
-                            if (i == 0 && j == 0)
-                            {
+                    int neighbours = 0;
 
-                            }
-                            else if (cells[x + j, y + i].alive)
+                    //Goes through the y axis from top to bottom
+                    //Goes through the x axis from left to right
+
+                    for (int i = -1; i < 2; i++)
+                    {
+                        for (int j = -1; j < 2; j++)
+                        {
+                            if (x + j > 0 && x + j < numberOfColums && y + i > 0 && y + i < numberOfRows)
                             {
-                                neighbours++;
+                                if (i == 0 && j == 0)
+                                {
+
+                                }
+                                else if (cells[x + j, y + i].alive)
+                                {
+                                    neighbours++;
+                                }
                             }
                         }
+
                     }
 
-                }
 
 
-
-
-                //Any live cell with fewer than two live neighbors dies as if caused by underpopulation.
-                //Any live cell with two or three live neighbors lives on to the next generation.
-                //Any live cell with more than three live neighbors dies, as if by overpopulation.
-                //Any dead cell with exactly three live neighbors becomes a live cell, as if by reproduction.
-
-                //Rule 1 & Rule 3
-                if (neighbours == 3)
-                {
-                    cells[x, y].aliveNextGen = true;
-                }
-                else if (neighbours == 2 && cells[x, y].alive)
-                {
-                    cells[x, y].aliveNextGen = true;
-                }
-                else
-                {
-                    cells[x, y].aliveNextGen = false;
+                    //RULES
+                    //Any live cell with fewer than two live neighbors dies as if caused by underpopulation.
+                    //Any live cell with two or three live neighbors lives on to the next generation.
+                    //Any live cell with more than three live neighbors dies, as if by overpopulation.
+                    //Any dead cell with exactly three live neighbors becomes a live cell, as if by reproduction.
+                    //Checks the rules
+                    if (neighbours == 3)
+                    {
+                        cells[x, y].aliveNextGen = true;
+                        cells[x, y].ballAge++;
+                    }
+                    else if (neighbours == 2 && cells[x, y].alive)
+                    {
+                        cells[x, y].aliveNextGen = true;
+                        cells[x, y].ballAge++;
+                    }
+                    else
+                    {
+                        cells[x, y].aliveNextGen = false;
+                        cells[x, y].ballAge = 0;
+                    }
+                    Mathf.Clamp(cells[x, y].ballAge, 0, 15);
+                    
                 }
             }
         }
 
-        //TODO: update buffer
+
+        //Paint/remove cells with mouse buttons
+        if (Input.GetMouseButton(0) && MouseX > 0 && MouseX < Width && MouseY > 0 && MouseY < Height)
+        {
+            cells[(int)(MouseX / cellSize), (int)(MouseY / cellSize)].aliveNextGen = true;
+        }
+        else if (Input.GetMouseButton(1) && MouseX > 0 && MouseX < Width && MouseY > 0 && MouseY < Height)
+        {
+            cells[(int)(MouseX / cellSize), (int)(MouseY / cellSize)].aliveNextGen = false;
+        }
 
         //Draw all cells.
         for (int y = 0; y < numberOfRows; ++y)
@@ -106,7 +153,6 @@ public class GameOfLife : ProcessingLite.GP21
             {
                 cells[x, y].alive = cells[x, y].aliveNextGen;
                 cells[x, y].Draw();
-
             }
         }
 
@@ -118,6 +164,7 @@ public class GameCell : ProcessingLite.GP21
 {
     float x, y; //Keep track of our position
     float size; //our size
+    public int ballAge = 0;
 
     //Keep track if we are alive
     public bool alive = false;
@@ -136,11 +183,40 @@ public class GameCell : ProcessingLite.GP21
 
     public void Draw()
     {
+
         //If we are alive, draw our dot.
         if (alive)
         {
+            if (ballAge > 0)
+            {
+                if (ballAge >= 1 && ballAge <= 5)
+                {
+                    Stroke(255, 255, 255);
+                }
+                else if (ballAge > 5 && ballAge <= 10)
+                {
+                    Stroke(255, 255, 125);
+                }
+                else if (ballAge > 10 && ballAge <= 15)
+                {
+                    Stroke(255, 125, 125);
+                }
+                else if (ballAge > 10 && ballAge <= 15)
+                {
+                    Stroke(255, 0, 125);
+                }
+                else if (ballAge > 15)
+                {
+                    Stroke(255, 0, 0);
+                }
+            }
+
             //draw our dots
             Circle(x, y, size);
+        }
+        if (!alive)
+        {
+            Stroke(255, 255, 255);
         }
     }
 }
